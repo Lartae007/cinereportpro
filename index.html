@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Cine Report Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        /* ปิดระบบ Refresh และ Scroll ของระบบปฏิบัติการหลัก 100% */
+        html, body { 
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%;
+            background-color: #0f0f11; color: #e0e0e0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            overscroll-behavior: none !important; 
+            touch-action: pan-x pan-y;
+            overflow: hidden; margin: 0; padding: 0;
+        }
+        
+        .scroll-custom {
+            overflow-y: auto !important; 
+            -webkit-overflow-scrolling: touch; 
+            overscroll-behavior: contain !important;
+            scroll-behavior: smooth;
+        }
+        .scroll-custom::-webkit-scrollbar { width: 6px; height: 6px; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #33333f; border-radius: 3px; }
+
+        .glass-panel { background: #16161a; border: 1px solid #2a2a32; border-radius: 12px; }
+        .btn-press:active { transform: scale(0.97); }
+        .tab-btn.active { border-bottom: 3px solid #ef4444; color: #ef4444; font-weight: bold; }
+        input, select { background-color: #1e1e24; border: 1px solid #33333f; color: #fff; border-radius: 6px; padding: 4px 8px; }
+        input:focus, select:focus { outline: none; border-color: #ef4444; }
+    </style>
+</head>
+<body class="flex flex-col text-sm select-none">
+
+    <!-- App Header & Crew Metadata -->
+    <header class="bg-[#121215] border-b border-gray-800 p-2 shrink-0 z-10">
+        <div class="flex justify-between items-center mb-1.5">
+            <div class="flex items-center space-x-2">
+                <h1 class="text-base font-black text-red-500 tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-clapperboard"></i> CINE REPORT PRO
+                </h1>
+                <span class="text-[9px] bg-red-950 text-red-400 border border-red-800 px-1.5 py-0.5 rounded font-mono">v3.3</span>
+            </div>
+            <button onclick="clearAllData()" class="text-[10px] bg-red-900/30 text-red-500 border border-red-900/50 px-2 py-1 rounded hover:bg-red-800 btn-press">
+                <i class="fa-solid fa-trash-can mr-1"></i> ล้างข้อมูล
+            </button>
+        </div>
+
+        <div class="grid grid-cols-4 gap-1.5 text-xs border-t border-gray-800/60 pt-1.5">
+            <div><label class="text-[8px] uppercase text-gray-500 block">Prod Name</label><input type="text" id="prodName" placeholder="Project Name" class="w-full py-0.5 text-[10px]"></div>
+            <div><label class="text-[8px] uppercase text-gray-500 block">Director</label><input type="text" id="director" placeholder="Director" class="w-full py-0.5 text-[10px]"></div>
+            <div><label class="text-[8px] uppercase text-gray-500 block">DoP / DP</label><input type="text" id="dop" placeholder="DoP" class="w-full py-0.5 text-[10px]"></div>
+            <div><label class="text-[8px] uppercase text-gray-500 block">Sound Mixer</label><input type="text" id="sndMixer" placeholder="Mixer" class="w-full py-0.5 text-[10px]"></div>
+        </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="flex bg-[#121215] border-b border-gray-800 shrink-0 z-10">
+        <button onclick="switchMainTab('input')" id="tab-main-input" class="flex-1 py-2 text-xs font-bold border-b-2 border-red-500 text-red-500 tracking-wider">
+            <i class="fa-solid fa-camera mr-1"></i> NEW TAKE
+        </button>
+        <button onclick="switchMainTab('log')" id="tab-main-log" class="flex-1 py-2 text-xs font-bold text-gray-500 hover:text-white tracking-wider">
+            <i class="fa-solid fa-list mr-1"></i> MASTER LOG (<span id="logCountBadge">0</span>)
+        </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 relative w-full overflow-hidden">
+        
+        <!-- TAB 1: INPUT CONTROLS (ฟิตพอดีจอ ไม่ต้องเลื่อน) -->
+        <div id="view-input" class="absolute inset-0 flex flex-col p-2 gap-1.5 bg-[#0f0f11] overflow-hidden">
+            
+            <div class="grid grid-cols-4 gap-1.5 bg-black p-1.5 rounded-lg border border-gray-800 shrink-0">
+                <div><label class="text-[8px] uppercase text-gray-500 block">Cam Roll</label><input type="text" id="camRoll" value="A001" class="w-full font-mono font-bold text-center py-0.5 text-xs"></div>
+                <div><label class="text-[8px] uppercase text-gray-500 block">Sound Roll</label><input type="text" id="soundRoll" value="SR001" class="w-full font-mono font-bold text-center py-0.5 text-xs"></div>
+                <div><label class="text-[8px] uppercase text-gray-500 block">Date</label><input type="date" id="shootDate" class="w-full py-0.5 text-[10px]"></div>
+                <div><label class="text-[8px] uppercase text-gray-500 block">Shoot Day</label><input type="text" id="shootDay" value="Day 1" class="w-full font-bold text-center py-0.5 text-xs"></div>
+            </div>
+
+            <div class="glass-panel p-2 flex flex-col gap-1.5 shrink-0">
+                <div class="grid grid-cols-3 gap-1.5">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Prefix</span>
+                        <button onclick="cyclePrefix()" id="prefixBtn" class="w-full h-10 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-bold border border-gray-700 text-yellow-400 btn-press">INT.</button>
+                    </div>
+
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Scene</span>
+                        <div class="flex items-center space-x-0.5 w-full">
+                            <button onclick="updateScene(-1)" class="w-7 h-10 shrink-0 bg-gray-800 hover:bg-gray-700 rounded-l-lg font-bold text-sm border border-gray-700 btn-press">-</button>
+                            <input type="text" id="sceneVal" value="1" onclick="openSceneModal()" readonly class="w-full min-w-0 h-10 bg-black border-y border-gray-700 text-base font-bold text-center cursor-pointer hover:border-red-500 text-white px-0">
+                            <button onclick="updateScene(1)" class="w-7 h-10 shrink-0 bg-gray-800 hover:bg-gray-700 rounded-r-lg font-bold text-sm border border-gray-700 btn-press">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Shot</span>
+                        <div class="flex items-center space-x-0.5 w-full">
+                            <button onclick="updateShot(-1)" class="w-7 h-10 shrink-0 bg-gray-800 hover:bg-gray-700 rounded-l-lg font-bold text-sm border border-gray-700 btn-press">-</button>
+                            <input type="text" id="shotVal" value="A" onclick="openShotModal()" readonly class="w-full min-w-0 h-10 bg-black border-y border-gray-700 text-base font-bold text-center cursor-pointer hover:border-red-500 text-yellow-400 uppercase px-0">
+                            <button onclick="updateShot(1)" class="w-7 h-10 shrink-0 bg-gray-800 hover:bg-gray-700 rounded-r-lg font-bold text-sm border border-gray-700 btn-press">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="toggleShotMode()" id="shotModeBtn" class="w-full py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-[10px] font-bold text-gray-300 uppercase tracking-wider btn-press">
+                    Shot Mode: Letters (A, B, C...)
+                </button>
+
+                <div class="flex items-center border-t border-gray-800 pt-1.5 justify-between px-2">
+                    <span class="text-[10px] text-gray-400 font-bold uppercase">Take Counter</span>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="updateTake(-1)" class="w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-lg text-xl font-bold border border-gray-700 btn-press">-</button>
+                        <input type="number" id="takeVal" value="1" class="w-20 h-12 bg-black border border-gray-700 rounded-lg text-2xl font-mono font-bold text-center text-red-500">
+                        <button onclick="updateTake(1)" class="w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-lg text-xl font-bold border border-gray-700 btn-press">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#16161a] border border-gray-800 rounded-lg overflow-hidden shrink-0 flex flex-col">
+                <div class="flex border-b border-gray-800 bg-[#121215]">
+                    <button onclick="switchDeptTab('camTab')" id="btn-camTab" class="tab-btn active flex-1 py-1.5 font-bold text-[10px] uppercase">Camera</button>
+                    <button onclick="switchDeptTab('soundTab')" id="btn-soundTab" class="tab-btn flex-1 py-1.5 font-bold text-[10px] text-gray-500 hover:text-white uppercase">Sound</button>
+                </div>
+                
+                <div id="camTab" class="p-2 space-y-1.5">
+                    <div class="bg-black p-1.5 rounded-lg border border-gray-800 space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[8px] text-gray-400 font-bold uppercase w-14">Lens Set:</span>
+                            <input type="text" id="lensSetupInput" value="18, 25, 35, 50, 85" class="flex-1 text-[10px] py-0.5">
+                            <button onclick="generateLensButtons()" class="bg-gray-800 px-2 py-0.5 rounded text-[10px] font-bold border border-gray-700 btn-press">Set</button>
+                        </div>
+                        <div class="flex items-center space-x-2 pt-1 border-t border-gray-900">
+                            <span class="text-[8px] text-gray-400 font-bold uppercase w-14">Active:</span>
+                            <div id="lensButtonsContainer" class="flex space-x-1 overflow-x-auto py-0.5"></div>
+                            <input type="hidden" id="activeLens" value="35mm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <div><label class="text-[8px] text-gray-500 uppercase block mb-0.5">T-Stop</label><input type="text" id="camTStop" value="T2.8" class="w-full text-[10px] py-1"></div>
+                        <div><label class="text-[8px] text-gray-500 uppercase block mb-0.5">ISO</label><input type="text" id="camISO" value="800" class="w-full text-[10px] py-1"></div>
+                        <div><label class="text-[8px] text-gray-500 uppercase block mb-0.5">WB</label><input type="text" id="camWB" value="56K" class="w-full text-[10px] py-1"></div>
+                        <div>
+                            <label class="text-[8px] text-gray-500 uppercase block mb-0.5">ND Filter</label>
+                            <input type="text" id="camND" value="Clear" onclick="cycleND()" readonly class="w-full text-[10px] py-1 text-center font-bold cursor-pointer bg-gray-800">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="soundTab" class="p-2 space-y-1.5 hidden">
+                    <div class="flex space-x-2">
+                        <button onclick="toggleFlag(this, 'MOS')" class="bg-gray-800 border border-gray-700 px-3 py-1 text-[10px] rounded btn-press">MOS</button>
+                        <button onclick="toggleFlag(this, 'WILD')" class="bg-gray-800 border border-gray-700 px-3 py-1 text-[10px] rounded btn-press">WILD</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="shrink-0 flex flex-col gap-1.5">
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="setStatus('Circled Take', this)" class="status-btn p-1.5 bg-gray-800 rounded border border-gray-700 hover:border-green-500 btn-press">
+                        <div class="font-bold text-green-400 text-[10px]">Circled</div>
+                    </button>
+                    <button onclick="setStatus('B-Negative', this)" class="status-btn p-1.5 bg-gray-800 rounded border border-gray-700 hover:border-yellow-500 btn-press">
+                        <div class="font-bold text-yellow-400 text-[10px]">B-Negative</div>
+                    </button>
+                    <button onclick="setStatus('No Good', this)" class="status-btn p-1.5 bg-gray-800 rounded border border-gray-700 hover:border-red-500 btn-press">
+                        <div class="font-bold text-red-400 text-[10px]">No Good</div>
+                    </button>
+                </div>
+                <input type="hidden" id="currentStatus" value="-">
+                <input type="text" id="takeNote" placeholder="พิมพ์ Note สำหรับเทคนี้ (ถ้ามี)..." class="w-full bg-black border border-gray-700 text-xs py-2 px-2 rounded-lg text-white focus:border-red-500">
+            </div>
+
+            <button onclick="logTake()" class="w-full mt-auto bg-red-600 hover:bg-red-500 text-white font-black text-lg py-3 rounded-xl shadow-lg border border-red-400 btn-press flex items-center justify-center space-x-2 shrink-0">
+                <i class="fa-solid fa-plus-circle text-xl"></i>
+                <span>LOG TAKE NOW</span>
+            </button>
+        </div>
+
+        <!-- TAB 2: MASTER LOG LIST (ปรับให้เลื่อน Scroll ได้ 100%) -->
+        <div id="view-log" class="absolute inset-0 flex flex-col p-3 bg-[#0f0f11] hidden">
+            <div class="flex justify-between items-center mb-2 shrink-0">
+                <h2 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Master Log Sheet</h2>
+                <div class="space-x-1">
+                    <button onclick="exportCSV()" class="bg-blue-950 text-blue-300 px-2.5 py-1 rounded text-xs border border-blue-800 btn-press">CSV</button>
+                    <button onclick="exportPDF()" class="bg-red-950 text-red-300 px-2.5 py-1 rounded text-xs border border-red-800 btn-press">PDF</button>
+                </div>
+            </div>
+
+            <!-- กล่องตารางที่เลื่อนได้อย่างอิสระ -->
+            <div id="logTableContainer" class="flex-1 overflow-auto scroll-custom border border-gray-800 rounded-lg bg-black relative">
+                <table class="w-full text-left text-xs whitespace-nowrap" id="logTable">
+                    <thead class="bg-[#16161a] text-gray-400 border-b border-gray-800 sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2 w-8 bg-[#16161a]">#</th>
+                            <th class="p-2 bg-[#16161a]">Scene</th>
+                            <th class="p-2 bg-[#16161a]">Shot</th>
+                            <th class="p-2 text-center bg-[#16161a]">Take</th>
+                            <th class="p-2 text-center bg-[#16161a]">Status</th>
+                            <th class="p-2 bg-[#16161a]">Cam Roll</th>
+                            <th class="p-2 bg-[#16161a]">Lens</th>
+                            <th class="p-2 w-48 bg-[#16161a]">Notes</th>
+                            <th class="p-2 text-center w-10 bg-[#16161a]">Del</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logBody" class="divide-y divide-gray-800/50 text-gray-300">
+                        <!-- ข้อมูลจะถูกสร้างที่นี่ -->
+                    </tbody>
+                </table>
+                <div id="emptyLogMsg" class="text-center text-gray-600 py-8 italic hidden">ยังไม่มีข้อมูล Log</div>
+            </div>
+
+            <!-- Floating Scroll Buttons -->
+            <div class="fixed bottom-4 right-4 flex flex-col gap-2 z-50">
+                <button onclick="scrollLogTo('top')" class="w-9 h-9 bg-gray-800/90 backdrop-blur border border-gray-700 rounded-full text-gray-400 hover:text-white hover:border-gray-500 shadow-lg flex items-center justify-center btn-press">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <button onclick="scrollLogTo('bottom')" class="w-9 h-9 bg-gray-800/90 backdrop-blur border border-gray-700 rounded-full text-gray-400 hover:text-white hover:border-gray-500 shadow-lg flex items-center justify-center btn-press">
+                    <i class="fa-solid fa-arrow-down"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals (Scene & Shot) -->
+    <div id="sceneModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-[#1a1a1a] border border-gray-700 rounded-xl w-[320px] overflow-hidden shadow-2xl p-4 space-y-3">
+            <h3 class="font-bold text-white uppercase tracking-wider text-xs text-center mb-2">Input Scene</h3>
+            <input type="text" id="sceneCustomInput" class="w-full bg-black border border-gray-700 text-xl text-center py-3 font-bold rounded text-white" placeholder="e.g. 14A">
+            <div class="grid grid-cols-5 gap-1.5 mt-2">
+                <button onclick="setModalValue('sceneCustomInput', '1')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">1</button>
+                <button onclick="setModalValue('sceneCustomInput', '2')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">2</button>
+                <button onclick="setModalValue('sceneCustomInput', '3')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">3</button>
+                <button onclick="setModalValue('sceneCustomInput', '4')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">4</button>
+                <button onclick="setModalValue('sceneCustomInput', '5')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">5</button>
+                <button onclick="setModalValue('sceneCustomInput', '6')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">6</button>
+                <button onclick="setModalValue('sceneCustomInput', '7')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">7</button>
+                <button onclick="setModalValue('sceneCustomInput', '8')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">8</button>
+                <button onclick="setModalValue('sceneCustomInput', '9')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">9</button>
+                <button onclick="setModalValue('sceneCustomInput', '10')" class="bg-gray-800 text-white font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">10</button>
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeSceneModal()" class="flex-1 bg-gray-800 text-white font-bold py-2 rounded btn-press">CANCEL</button>
+                <button onclick="confirmSceneModal()" class="flex-1 bg-red-600 text-white font-bold py-2 rounded btn-press">APPLY</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shotModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-[#1a1a1a] border border-gray-700 rounded-xl w-[320px] overflow-hidden shadow-2xl p-4 space-y-3">
+            <h3 class="font-bold text-white uppercase tracking-wider text-xs text-center mb-2">Input Shot</h3>
+            <input type="text" id="shotCustomInput" class="w-full bg-black border border-gray-700 text-xl text-center py-3 font-bold rounded text-yellow-400 uppercase" placeholder="e.g. A">
+            <div class="grid grid-cols-5 gap-1.5 mt-2">
+                <button onclick="setModalValue('shotCustomInput', 'A')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">A</button>
+                <button onclick="setModalValue('shotCustomInput', 'B')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">B</button>
+                <button onclick="setModalValue('shotCustomInput', 'C')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">C</button>
+                <button onclick="setModalValue('shotCustomInput', 'D')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">D</button>
+                <button onclick="setModalValue('shotCustomInput', 'E')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">E</button>
+                <button onclick="setModalValue('shotCustomInput', 'F')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">F</button>
+                <button onclick="setModalValue('shotCustomInput', 'G')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">G</button>
+                <button onclick="setModalValue('shotCustomInput', 'H')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">H</button>
+                <button onclick="setModalValue('shotCustomInput', 'I')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">I</button>
+                <button onclick="setModalValue('shotCustomInput', 'J')" class="bg-gray-800 text-yellow-400 font-bold py-2 rounded border border-gray-700 hover:border-red-500 btn-press">J</button>
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeShotModal()" class="flex-1 bg-gray-800 text-white font-bold py-2 rounded btn-press">CANCEL</button>
+                <button onclick="confirmShotModal()" class="flex-1 bg-red-600 text-white font-bold py-2 rounded btn-press">APPLY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT ENGINE -->
+    <script>
+        // บังคับปิด Gesture Pull-To-Refresh บน Touch Device
+        document.addEventListener('touchmove', function(e) {
+            const container = document.getElementById('logTableContainer');
+            if (container && container.contains(e.target)) {
+                return; // ยอมให้ Scroll เฉพาะกล่องตาราง
+            }
+            e.preventDefault();
+        }, { passive: false });
+
+        let logsData = JSON.parse(localStorage.getItem('cine_logs')) || [];
+        const stateFields = ['prodName', 'director', 'dop', 'sndMixer', 'camRoll', 'soundRoll', 'shootDate', 'shootDay', 'sceneVal', 'shotVal', 'takeVal', 'lensSetupInput', 'camTStop', 'camISO', 'camWB'];
+        
+        window.onload = () => {
+            if(!document.getElementById('shootDate').value) document.getElementById('shootDate').valueAsDate = new Date();
+            loadState();
+            generateLensButtons();
+            renderLogs();
+        };
+
+        function saveState() {
+            const state = {};
+            stateFields.forEach(id => {
+                if(document.getElementById(id)) state[id] = document.getElementById(id).value;
+            });
+            state.prefix = document.getElementById('prefixBtn').innerText;
+            state.shotMode = shotMode;
+            state.activeLens = document.getElementById('activeLens').value;
+            state.camND = document.getElementById('camND').value;
+            localStorage.setItem('cine_state', JSON.stringify(state));
+        }
+
+        function loadState() {
+            const state = JSON.parse(localStorage.getItem('cine_state'));
+            if(state) {
+                stateFields.forEach(id => {
+                    if(document.getElementById(id) && state[id]) document.getElementById(id).value = state[id];
+                });
+                if(state.prefix) document.getElementById('prefixBtn').innerText = state.prefix;
+                if(state.shotMode) {
+                    shotMode = state.shotMode;
+                    document.getElementById('shotModeBtn').innerText = `Shot Mode: ${shotMode === 'letter' ? 'Letters' : 'Numbers'}`;
+                }
+                if(state.activeLens) document.getElementById('activeLens').value = state.activeLens;
+                if(state.camND) document.getElementById('camND').value = state.camND;
+            }
+        }
+
+        document.addEventListener('input', (e) => { if(stateFields.includes(e.target.id)) saveState(); });
+
+        function clearAllData() {
+            if(confirm("คำเตือน: ข้อมูลการจด Log ทั้งหมดจะหายไป ยืนยันการล้างข้อมูลหรือไม่?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function switchMainTab(tab) {
+            document.getElementById('view-input').classList.add('hidden');
+            document.getElementById('view-log').classList.add('hidden');
+            document.getElementById('tab-main-input').className = "flex-1 py-2 text-xs font-bold text-gray-500 hover:text-white tracking-wider";
+            document.getElementById('tab-main-log').className = "flex-1 py-2 text-xs font-bold text-gray-500 hover:text-white tracking-wider";
+
+            if(tab === 'input') {
+                document.getElementById('view-input').classList.remove('hidden');
+                document.getElementById('tab-main-input').className = "flex-1 py-2 text-xs font-bold border-b-2 border-red-500 text-red-500 tracking-wider";
+            } else {
+                document.getElementById('view-log').classList.remove('hidden');
+                document.getElementById('tab-main-log').className = "flex-1 py-2 text-xs font-bold border-b-2 border-red-500 text-red-500 tracking-wider";
+            }
+        }
+
+        function switchDeptTab(tabId) {
+            document.getElementById('camTab').classList.add('hidden');
+            document.getElementById('soundTab').classList.add('hidden');
+            document.getElementById('btn-camTab').classList.remove('active', 'text-gray-500');
+            document.getElementById('btn-soundTab').classList.remove('active', 'text-gray-500');
+            document.getElementById('btn-camTab').classList.add('text-gray-500');
+            document.getElementById('btn-soundTab').classList.add('text-gray-500');
+            
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById('btn-' + tabId).classList.add('active');
+            document.getElementById('btn-' + tabId).classList.remove('text-gray-500');
+        }
+
+        let shotMode = 'letter';
+        function toggleShotMode() {
+            shotMode = shotMode === 'letter' ? 'number' : 'letter';
+            document.getElementById('shotModeBtn').innerText = `Shot Mode: ${shotMode === 'letter' ? 'Letters (A, B, C...)' : 'Numbers (1, 2, 3...)'}`;
+            document.getElementById('shotVal').value = shotMode === 'letter' ? 'A' : '1';
+            saveState();
+        }
+
+        const prefixes = ["INT.", "EXT.", "I/E", "-"];
+        let prefixIdx = 0;
+        function cyclePrefix() {
+            prefixIdx = (prefixIdx + 1) % prefixes.length;
+            document.getElementById('prefixBtn').innerText = prefixes[prefixIdx];
+            saveState();
+        }
+
+        const ndSteps = ["Clear", "0.3 (1 Stop)", "0.6 (2 Stops)", "0.9 (3 Stops)", "1.2 (4 Stops)"];
+        let ndIndex = 0;
+        function cycleND() {
+            ndIndex = (ndIndex + 1) % ndSteps.length;
+            document.getElementById('camND').value = ndSteps[ndIndex];
+            saveState();
+        }
+
+        function updateScene(change) {
+            let val = parseInt(document.getElementById('sceneVal').value) || 1;
+            document.getElementById('sceneVal').value = Math.max(1, val + change);
+            saveState();
+        }
+
+        function updateShot(change) {
+            let val = document.getElementById('shotVal').value;
+            if(shotMode === 'letter') {
+                let code = val.charCodeAt(0) + change;
+                if(change > 0 && (code === 73 || code === 79)) code++;
+                if(change < 0 && (code === 73 || code === 79)) code--;
+                if(code >= 65 && code <= 90) document.getElementById('shotVal').value = String.fromCharCode(code);
+            } else {
+                let num = parseInt(val) || 1;
+                document.getElementById('shotVal').value = Math.max(1, num + change);
+            }
+            saveState();
+        }
+
+        function updateTake(change) {
+            let val = parseInt(document.getElementById('takeVal').value) || 1;
+            document.getElementById('takeVal').value = Math.max(1, val + change);
+            saveState();
+        }
+
+        function setStatus(status, btn) {
+            document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('ring-2', 'ring-red-500'));
+            btn.classList.add('ring-2', 'ring-red-500');
+            document.getElementById('currentStatus').value = status;
+        }
+
+        function generateLensButtons() {
+            const input = document.getElementById('lensSetupInput').value;
+            const container = document.getElementById('lensButtonsContainer');
+            if(!input.trim()) return;
+            const lenses = input.split(',').map(s => s.trim()).filter(s => s);
+            const savedLens = document.getElementById('activeLens').value;
+            container.innerHTML = '';
+            
+            lenses.forEach((lens, index) => {
+                const btn = document.createElement('button');
+                const lensText = lens.toLowerCase().includes('mm') ? lens : lens + 'mm';
+                btn.innerText = lensText;
+                
+                const isActive = (savedLens === lensText) || (!savedLens && index === 0);
+                if(isActive) document.getElementById('activeLens').value = lensText;
+
+                btn.className = `px-2 py-0.5 rounded text-[10px] font-bold border btn-press ${isActive ? 'bg-red-900 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`;
+                
+                btn.onclick = function() {
+                    Array.from(container.children).forEach(c => c.className = 'px-2 py-0.5 rounded text-[10px] font-bold border btn-press bg-gray-800 border-gray-700 text-gray-300');
+                    this.className = 'px-2 py-0.5 rounded text-[10px] font-bold border btn-press bg-red-900 border-red-500 text-white';
+                    document.getElementById('activeLens').value = lensText;
+                    saveState();
+                };
+                container.appendChild(btn);
+            });
+            saveState();
+        }
+
+        function setModalValue(inputId, val) { document.getElementById(inputId).value = val; }
+        function openSceneModal() { document.getElementById('sceneCustomInput').value = document.getElementById('sceneVal').value; document.getElementById('sceneModal').classList.remove('hidden'); }
+        function closeSceneModal() { document.getElementById('sceneModal').classList.add('hidden'); }
+        function confirmSceneModal() {
+            const val = document.getElementById('sceneCustomInput').value.trim();
+            if(val !== '') { document.getElementById('sceneVal').value = val; saveState(); }
+            closeSceneModal();
+        }
+        function openShotModal() { document.getElementById('shotCustomInput').value = document.getElementById('shotVal').value; document.getElementById('shotModal').classList.remove('hidden'); }
+        function closeShotModal() { document.getElementById('shotModal').classList.add('hidden'); }
+        function confirmShotModal() {
+            const val = document.getElementById('shotCustomInput').value.trim().toUpperCase();
+            if(val !== '') { document.getElementById('shotVal').value = val; saveState(); }
+            closeShotModal();
+        }
+
+        function logTake() {
+            const prefix = document.getElementById('prefixBtn').innerText;
+            const scene = (prefix !== '-' ? prefix + ' ' : '') + document.getElementById('sceneVal').value;
+            const shot = document.getElementById('shotVal').value;
+            const take = document.getElementById('takeVal').value;
+            const status = document.getElementById('currentStatus').value;
+            const camRoll = document.getElementById('camRoll').value;
+            const lens = document.getElementById('activeLens').value || '-';
+            const note = document.getElementById('takeNote').value;
+
+            const logEntry = {
+                scene: scene, shot: shot, take: take, status: status,
+                camRoll: camRoll, lens: lens, notes: note, id: Date.now()
+            };
+
+            logsData.unshift(logEntry);
+            localStorage.setItem('cine_logs', JSON.stringify(logsData));
+            
+            document.getElementById('takeNote').value = '';
+            document.getElementById('currentStatus').value = '-';
+            document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('ring-2', 'ring-red-500'));
+            
+            renderLogs();
+            updateTake(1);
+            
+            const btn = document.querySelector('button[onclick="logTake()"]');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check text-xl"></i><span>LOGGED!</span>';
+            btn.classList.add('bg-green-600', 'border-green-400');
+            setTimeout(() => { 
+                btn.innerHTML = originalHtml; 
+                btn.classList.remove('bg-green-600', 'border-green-400');
+            }, 800);
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logBody');
+            const emptyMsg = document.getElementById('emptyLogMsg');
+            document.getElementById('logCountBadge').innerText = logsData.length;
+            
+            tbody.innerHTML = '';
+            
+            if(logsData.length === 0) {
+                emptyMsg.classList.remove('hidden');
+                return;
+            }
+            emptyMsg.classList.add('hidden');
+
+            logsData.forEach((log, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-900 border-b border-gray-800/40";
+                
+                let statusBadge = `<span class="text-[10px] text-gray-500">-</span>`;
+                if(log.status === 'Circled Take') statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-green-900 text-green-300">Circled</span>`;
+                if(log.status === 'B-Negative') statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-yellow-900 text-yellow-300">B-Neg</span>`;
+                if(log.status === 'No Good') statusBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-900 text-red-300">NG</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-2 text-gray-500">${logsData.length - index}</td>
+                    <td class="p-2 font-bold text-white">${log.scene}</td>
+                    <td class="p-2 font-bold text-yellow-400">${log.shot}</td>
+                    <td class="p-2 text-center font-mono font-bold text-red-400">${log.take}</td>
+                    <td class="p-2 text-center">${statusBadge}</td>
+                    <td class="p-2 text-blue-400">${log.camRoll}</td>
+                    <td class="p-2 text-gray-300">${log.lens}</td>
+                    <td class="p-2">
+                        <input type="text" value="${log.notes || ''}" onchange="updateLogNote(${index}, this.value)" class="w-full bg-transparent border-b border-gray-800 text-xs text-gray-300 focus:border-red-500 py-1" placeholder="พิมพ์เพิ่ม...">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteLog(${index})" class="text-gray-600 hover:text-red-500 btn-press"><i class="fa-solid fa-trash-can"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateLogNote(index, value) {
+            logsData[index].notes = value;
+            localStorage.setItem('cine_logs', JSON.stringify(logsData));
+        }
+
+        function deleteLog(index) {
+            if(confirm("ลบข้อมูล Take นี้?")) {
+                logsData.splice(index, 1);
+                localStorage.setItem('cine_logs', JSON.stringify(logsData));
+                renderLogs();
+            }
+        }
+        
+        // เลื่อนขึ้น-ลงใน Master Log
+        function scrollLogTo(direction) {
+            const container = document.getElementById('logTableContainer');
+            if(direction === 'top') {
+                container.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        function exportCSV() {
+            if(logsData.length === 0) return alert('No data to export!');
+            let csvContent = "data:text/csv;charset=utf-8,Scene,Shot,Take,Status,Cam Roll,Lens,Notes\n";
+            logsData.forEach(row => {
+                let rowData = [row.scene, row.shot, row.take, row.status, row.camRoll, row.lens, row.notes].map(e => `"${e}"`).join(",");
+                csvContent += rowData + "\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "CineLog_Export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            if(logsData.length === 0) return alert('No data to export!');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const prodName = document.getElementById('prodName').value || 'Unknown Project';
+            const date = document.getElementById('shootDate').value || 'Unknown Date';
+            
+            doc.setFontSize(16);
+            doc.text(`Cine Report - ${prodName}`, 14, 15);
+            doc.setFontSize(10);
+            doc.text(`Date: ${date}`, 14, 22);
+            
+            const tableData = logsData.map((log, index) => [
+                logsData.length - index, log.scene, log.shot, log.take,
+                log.status, log.camRoll, log.lens, log.notes || ''
+            ]);
+
+            doc.autoTable({
+                startY: 28,
+                head: [['#', 'Scene', 'Shot', 'Take', 'Status', 'Cam Roll', 'Lens', 'Notes']],
+                body: tableData,
+                theme: 'grid',
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [239, 68, 68] }
+            });
+
+            doc.save(`CineReport_${prodName}_${date}.pdf`);
+        }
+    </script>
+</body>
+</html>
